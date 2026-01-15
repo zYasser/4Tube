@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoder/internal/config"
+	"encoder/internal/handlers"
 	"fmt"
 	"log"
 	"net/http"
@@ -8,10 +10,10 @@ import (
 
 func main() {
 	// Load configuration
-	config := LoadConfig()
+	config := config.LoadConfig()
 
 	// Setup routes
-	router := SetupRoutes()
+	router := handlers.SetupRoutes()
 
 	// Start server
 	addr := ":" + config.Port

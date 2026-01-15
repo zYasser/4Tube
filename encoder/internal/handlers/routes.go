@@ -1,8 +1,6 @@
-package main
+package handlers
 
 import (
-	"encoder/handlers"
-
 	"github.com/gorilla/mux"
 )
 
@@ -11,7 +9,7 @@ func SetupRoutes() *mux.Router {
 	r := mux.NewRouter()
 
 	// API routes
-	r.HandleFunc("/", handlers.HelloWorld).Methods("GET")
+	r.HandleFunc("/", HelloWorld).Methods("GET")
 
 	return r
 }
