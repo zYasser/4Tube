@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: 4Tube
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: user
+    password: password
+    template:
+      retry:
+        enabled: true
+        max-retries: 3
+        initial-interval: 1000
+        max-interval: 5000
+        multiplier: 2.0
+
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10GB
+      max-request-size: 10GB
+
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/java
+    username: root
+    password: root
+
+  jpa:
+    show-sql: true
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: UTC
+        format_sql: true
+
+# Custom application properties
+app:
+  upload:
+    dir: ${UPLOAD_DIR:uploads}/uploads/raw/files
+upload:
+  queue: ${UPLOAD_QUEUE:upload.queue}
+  routing.key: ${UPLOAD_ROUTING_KEY:upload.routing.key}
+  exchange: ${UPLOAD_EXCHANGE:upload.exchange}
