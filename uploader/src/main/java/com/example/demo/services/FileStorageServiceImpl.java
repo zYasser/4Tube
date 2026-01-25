@@ -1,32 +1,8 @@
 package com.example.demo.services;
 
-import com.example.demo.config.RabbitMqConfig;
-import com.example.demo.entity.FileMetadata;
-import com.example.demo.events.UploadEvent;
-import com.example.demo.exceptions.HttpException;
-import com.example.demo.reader.FileReader;
-import com.example.demo.repository.FileMetadataRepository;
-
-import lombok.AllArgsConstructor;
-
-import org.hibernate.boot.internal.Abstract;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.InputStreamResource;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
-
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -34,6 +10,24 @@ import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import com.example.demo.config.RabbitMqConfig;
+import com.example.demo.entity.FileMetadata;
+import com.example.demo.events.UploadEvent;
+import com.example.demo.exceptions.HttpException;
+import com.example.demo.reader.FileReader;
+import com.example.demo.repository.FileMetadataRepository;
 
 @Service
 public class FileStorageServiceImpl implements FileStorageService {
@@ -80,14 +74,16 @@ public class FileStorageServiceImpl implements FileStorageService {
             file.getSize(),
             file.getContentType()
         );
+        metadataRepository.save(metadata);
         
         UploadEvent uploadEvent = UploadEvent.builder()
             .id(metadata.getId())
             .fileId(metadata.getFilename())
             .build();
+        System.out.println("uploadEvent.toString() = " + uploadEvent.toString());
         rabbitTemplate.convertAndSend(RabbitMqConfig.UPLOAD_EXCHANGE, RabbitMqConfig.UPLOAD_ROUTING_KEY, uploadEvent);
 
-        return metadataRepository.save(metadata);
+        return metadata;
     }
 
     @Override
