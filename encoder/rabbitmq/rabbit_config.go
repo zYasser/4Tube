@@ -1,8 +1,10 @@
 package rabbitmq
 
 import (
+	"context"
+	"errors"
+	"log"
 	"os"
-
 	"github.com/rabbitmq/amqp091-go"
 )
 
@@ -11,10 +13,15 @@ type RabbitConfig struct {
 	Channel *amqp091.Channel
 }
 
-func ConnectToRabbitMQ() (*RabbitConfig, error) {
-
-	conn, err := amqp091.Dial(os.Getenv("RABBITMQ_URL"))
+func connectToRabbitMQ() (*RabbitConfig, error) {
+	log.Println("Connecting to RabbitMQ")
+	url := os.Getenv("RABBITMQ_URL")
+	if url == "" {
+		return nil, errors.New("RABBITMQ_URL is not set")
+	}
+	conn, err := amqp091.Dial(url)
 	if err != nil {
+		log.Println("Failed to connect to RabbitMQ", err)
 		return nil, err
 	}
 
@@ -29,7 +36,27 @@ func ConnectToRabbitMQ() (*RabbitConfig, error) {
 	}, nil
 }
 
-func (c *RabbitConfig) Close() error {
+func (c *RabbitConfig) close() error {
 	return c.Conn.Close()
+}
+
+
+func SetupRabbitMQ(ctx context.Context) ( error) {
+	rabbitConfig, err := connectToRabbitMQ()
+	if err != nil {
+		return err
+	}
+
+
+
+	go rabbitConfig.consumeMessages("upload.queue", "upload_exchange", "direct", "upload.routing.key")
+	
+
+	go func() {
+		<-ctx.Done()
+		log.Println("Stopping RabbitMQ connection")
+		rabbitConfig.close()
+	}()
+	return nil
 }
 

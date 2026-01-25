@@ -1,17 +1,20 @@
 package rabbitmq
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 
 	"github.com/rabbitmq/amqp091-go"
+	
 )
 
 type UploadEvent struct {
 	ID      string `json:"id"`
-	Message string `json:"message"`
+	FileUrl string `json:"file_url"`
 }
 
-func (con *RabbitConfig) ConsumeMessages(queueName string, exchangeName string, exchangeType string , routingKey string) {
+func (con *RabbitConfig) consumeMessages(queueName string, exchangeName string, exchangeType string , routingKey string) {
 
 	err := con.Channel.ExchangeDeclare(
 		exchangeName,
@@ -25,12 +28,12 @@ func (con *RabbitConfig) ConsumeMessages(queueName string, exchangeName string, 
 	if err != nil {
 		log.Panicf("Failed to declare exchange: %v", err)
 	}
-
+	
 	q, err := con.Channel.QueueDeclare(
 		queueName,
 		true,
 		false, 
-		true,  
+		false,  
 		false, 
 		amqp091.Table{}, 
 	)
@@ -58,9 +61,12 @@ func (con *RabbitConfig) ConsumeMessages(queueName string, exchangeName string, 
 		nil,
 	)
 	go func() {
-		for d := range msgs {
-			log.Printf("Received a message: %s", d.Body)
-		}
+			for d := range msgs {
+				uploadEvent := UploadEvent{}
+				json.Unmarshal(d.Body, &uploadEvent)
+				fmt.Println("Upload event received", uploadEvent)
+
+			}
 	}()
 
 }
