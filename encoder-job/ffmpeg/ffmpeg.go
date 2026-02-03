@@ -17,7 +17,7 @@ type FfmpegJob struct {
 	VideoResolution string
 	StartTime       string
 	OutputFormat    string
-	FinishedChan    chan bool
+	FinishedChan    chan error
 }
 
 // InitFromEnv initializes FfmpegJob from environment variables
@@ -32,15 +32,14 @@ func NewFfmpegJob() *FfmpegJob {
 		VideoResolution: os.Getenv("FFMPEG_VIDEO_RESOLUTION"),
 		StartTime:       os.Getenv("FFMPEG_START_TIME"),
 		OutputFormat:    os.Getenv("FFMPEG_OUTPUT_FORMAT"),
-		FinishedChan:    make(chan bool),
+		FinishedChan:    make(chan error, 1),
 	}
 }
 func (job *FfmpegJob) Run() error {
     command := job.buildArgs()
     fmt.Println("Running command:", strings.Join(command, " "))
 
-    cmd := exec.Command("ffmpeg", command...)
-    
+    cmd := exec.Command("ffmpeg", command...)	
     cmd.Stdout = os.Stdout
     cmd.Stderr = os.Stderr
 
@@ -51,8 +50,10 @@ func (job *FfmpegJob) Run() error {
     go func() {
         if err := cmd.Wait(); err != nil {
             fmt.Printf("ffmpeg finished with error: %v\n", err)
+			job.FinishedChan <- err
+			return
         }
-        job.FinishedChan <- true
+        job.FinishedChan <- nil
     }()
 
     return nil
