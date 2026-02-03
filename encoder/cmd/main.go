@@ -9,8 +9,11 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 )
+
+
 
 func main() {
 	err := godotenv.Load(".env")
@@ -18,13 +21,21 @@ func main() {
 		log.Fatal("Error loading .env file ", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// Setup database
+	db := config.SetupDatabase()
 	// Load configuration
-	config := config.LoadConfig()
+	appConfig := config.LoadConfig()
+
+	app := &config.Application{
+		DB: db,
+		Router: mux.NewRouter(),
+	}
 
 	// Setup routes
-	router := handlers.SetupRoutes()
+	app.Router = handlers.SetupRoutes()
 
-	err = rabbitmq.SetupRabbitMQ(ctx)
+	err = rabbitmq.SetupRabbitMQ(ctx, app.DB)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -33,9 +44,8 @@ func main() {
 	defer cancel()
 	
 	// Start server
-	addr := ":" + config.Port
+	addr := ":" + appConfig.Port
 	fmt.Printf("Server starting on %s...\n", addr)
-	log.Fatal(http.ListenAndServe(addr, router))
-
+	log.Fatal(http.ListenAndServe(addr, app.Router))
 
 }

@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/rabbitmq/amqp091-go"
-	
+	"gorm.io/gorm"
 )
 
 type UploadEvent struct {
@@ -14,7 +14,7 @@ type UploadEvent struct {
 	FileUrl string `json:"file_url"`
 }
 
-func (con *RabbitConfig) consumeMessages(queueName string, exchangeName string, exchangeType string , routingKey string) {
+func (con *RabbitConfig) consumeMessages(queueName string, exchangeName string, exchangeType string , routingKey string, db *gorm.DB) {
 
 	err := con.Channel.ExchangeDeclare(
 		exchangeName,

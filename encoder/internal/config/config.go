@@ -1,6 +1,8 @@
 package config
 
-import "os"
+import (
+	"os"
+)
 
 type Config struct {
 	Port string
@@ -16,3 +18,4 @@ func LoadConfig() *Config {
 		Port: port,
 	}
 }
+

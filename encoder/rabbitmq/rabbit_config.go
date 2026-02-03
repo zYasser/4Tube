@@ -5,7 +5,9 @@ import (
 	"errors"
 	"log"
 	"os"
+
 	"github.com/rabbitmq/amqp091-go"
+	"gorm.io/gorm"
 )
 
 type RabbitConfig struct {
@@ -41,7 +43,7 @@ func (c *RabbitConfig) close() error {
 }
 
 
-func SetupRabbitMQ(ctx context.Context) ( error) {
+func SetupRabbitMQ(ctx context.Context , db *gorm.DB) ( error) {
 	rabbitConfig, err := connectToRabbitMQ()
 	if err != nil {
 		return err
@@ -49,7 +51,7 @@ func SetupRabbitMQ(ctx context.Context) ( error) {
 
 
 
-	go rabbitConfig.consumeMessages("upload.queue", "upload_exchange", "direct", "upload.routing.key")
+	go rabbitConfig.consumeMessages("upload.queue", "upload_exchange", "direct", "upload.routing.key" , db)
 	
 
 	go func() {
