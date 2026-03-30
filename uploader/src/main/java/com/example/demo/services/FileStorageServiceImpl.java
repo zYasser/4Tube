@@ -6,13 +6,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -29,21 +30,27 @@ import com.example.demo.exceptions.HttpException;
 import com.example.demo.reader.FileReader;
 import com.example.demo.repository.FileMetadataRepository;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Service
+@Slf4j
 public class FileStorageServiceImpl implements FileStorageService {
 
     private final Path fileStorageLocation;
     private final FileMetadataRepository metadataRepository;
     private final RabbitTemplate rabbitTemplate;
+    @Lazy
+    private final MinioService minioService;
 
     public FileStorageServiceImpl(
             @Value("${app.upload.dir:uploads}") String uploadDir,
             FileMetadataRepository metadataRepository,
-            RabbitTemplate rabbitTemplate) throws IOException {
+            RabbitTemplate rabbitTemplate,
+            @Lazy MinioService minioService) throws IOException {
         this.fileStorageLocation = Paths.get(uploadDir).toAbsolutePath().normalize();
         this.metadataRepository = metadataRepository;
         this.rabbitTemplate = rabbitTemplate;
-        System.out.println("fileStorageLocation = " + fileStorageLocation);
+        this.minioService = minioService;
 
         try {
             Files.createDirectories(this.fileStorageLocation);
@@ -54,33 +61,29 @@ public class FileStorageServiceImpl implements FileStorageService {
 
     @Override
     public FileMetadata store(MultipartFile file) throws IOException {
-        // Generate a unique filename to avoid conflicts
         String originalFilename = file.getOriginalFilename();
         String fileExtension = "";
         if (originalFilename != null && originalFilename.contains(".")) {
             fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
         }
-
         String uniqueFilename = UUID.randomUUID().toString() + fileExtension;
-        Path targetLocation = this.fileStorageLocation.resolve(uniqueFilename);
 
-        Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
+        // Delegate upload entirely to MinioService
+        String fileUrl = minioService.upload(file, uniqueFilename);
 
-        // Create and save file metadata
         FileMetadata metadata = new FileMetadata(
-            uniqueFilename,
-            originalFilename,
-            targetLocation.toString(),
-            file.getSize(),
-            file.getContentType()
-        );
+                uniqueFilename,
+                originalFilename,
+                fileUrl,
+                file.getSize(),
+                file.getContentType());
         metadataRepository.save(metadata);
-        
+
         UploadEvent uploadEvent = UploadEvent.builder()
-            .id(metadata.getId())
-            .fileId(metadata.getFilename())
-            .build();
-        System.out.println("uploadEvent.toString() = " + uploadEvent.toString());
+                .id(metadata.getId())
+                .fileId(metadata.getFilename())
+                .build();
+        log.info("uploadEvent.toString() = " + uploadEvent.toString());
         rabbitTemplate.convertAndSend(RabbitMqConfig.UPLOAD_EXCHANGE, RabbitMqConfig.UPLOAD_ROUTING_KEY, uploadEvent);
 
         return metadata;
@@ -109,7 +112,7 @@ public class FileStorageServiceImpl implements FileStorageService {
 
         // Delete the metadata
         metadataRepository.findByFilename(filename)
-            .ifPresent(metadata -> metadataRepository.delete(metadata));
+                .ifPresent(metadata -> metadataRepository.delete(metadata));
     }
 
     @Override
@@ -121,28 +124,26 @@ public class FileStorageServiceImpl implements FileStorageService {
         // Delete the metadata
         metadataRepository.delete(metadata);
     }
+
     @Override
     public ResponseEntity<Resource> downloadFileById(Long id, long offset, long length) {
         FileMetadata metadata = metadataRepository.findById(id)
                 .orElseThrow(() -> new HttpException(
                         HttpStatus.NOT_FOUND,
                         "File not found",
-                        "FILE_NOT_FOUND"
-                ));
-    
+                        "FILE_NOT_FOUND"));
+
         File file = new File(metadata.getLocation());
         long fileSize = file.length();
         byte[] content = FileReader.readFile(file, offset, length);
-    
-    
+
         InputStreamResource resource = new InputStreamResource(new ByteArrayInputStream(content));
-    
+
         return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                 .contentType(MediaType.parseMediaType(
                         metadata.getContentType() != null
                                 ? metadata.getContentType()
-                                : "application/octet-stream"
-                ))
+                                : "application/octet-stream"))
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + metadata.getOriginalFilename() + "\"")
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
@@ -151,5 +152,5 @@ public class FileStorageServiceImpl implements FileStorageService {
                 .contentLength(content.length)
                 .body(resource);
     }
-    
+
 }
