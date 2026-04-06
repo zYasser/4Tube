@@ -2,14 +2,16 @@ package service
 
 import (
 	"encoder/internal/models"
-
+	"encoder/pkg/rabbitmq"
 	"gorm.io/gorm"
 )
 
-func CreateJob(job *models.Job, db *gorm.DB) (*models.Job, error) {
+func CreateJob(event rabbitmq.UploadEvent, db *gorm.DB) error {
+
+	job := models.BuildJob(event.ID, event.FileUrl)
 	err := db.Create(job).Error
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return job, nil
+	return nil
 }

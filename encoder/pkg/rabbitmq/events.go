@@ -54,7 +54,7 @@ func (con *RabbitConfig) consumeMessages(queueName string, exchangeName string, 
 	msgs, err := con.Channel.Consume(
 		q.Name,
 		"go-encoder",
-		true,
+		false,
 		false,
 		false,
 		false,
