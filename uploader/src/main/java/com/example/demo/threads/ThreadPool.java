@@ -5,6 +5,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingDeque;
 
+import com.example.demo.model.QueueTask;
+
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
@@ -13,7 +15,7 @@ public class ThreadPool {
 
     private final int MAX_THREADS = 10;
     private WorkerThreadPool[] workers;
-    private final BlockingQueue<Callable<Void>> taskQueue;
+    private final BlockingQueue<QueueTask<Void>> taskQueue;
     private volatile boolean isShutdown = false;
     private final Object shutdownLock = new Object();
 
@@ -45,8 +47,9 @@ public class ThreadPool {
                 throw new IllegalStateException("ThreadPool is shutdown. Cannot accept new tasks.");
             }
             log.debug("Submitting task to queue: {}", task);
-            taskQueue.put(task);
-            log.info("Task submitted successfully: {}", task);
+            QueueTask<Void> t= new QueueTask<>(task);
+            taskQueue.put(t);
+            log.info("Task submitted successfully  id {}" , t.getId() );
         }
     }
 
