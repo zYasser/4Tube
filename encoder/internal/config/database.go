@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoder/internal/logging"
 	"encoder/internal/models"
 	"fmt"
 	"os"
@@ -10,7 +11,8 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func SetupDatabase() *gorm.DB {
+func SetupDatabase() (*gorm.DB, error) {
+	appLogger := logging.Component("database")
 
 	dbUsername := os.Getenv("DB_USERNAME")
 	dbPassword := os.Getenv("DB_PASSWORD")
@@ -21,12 +23,16 @@ func SetupDatabase() *gorm.DB {
 	dbUrl := fmt.Sprintf("postgres://%s:%s@%s:%s/%s", dbUsername, dbPassword, dbHost, dbPort, dbName)
 
 	db, err := gorm.Open(postgres.Open(dbUrl), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.Default.LogMode(logger.Warn),
 	})
 	if err != nil {
-		panic("failed to connect database: " + err.Error())
+		return nil, fmt.Errorf("connect to postgres: %w", err)
 	}
 
-	db.AutoMigrate(&models.Job{})
-	return db
+	if err := db.AutoMigrate(&models.Job{}); err != nil {
+		return nil, fmt.Errorf("auto-migrate job model: %w", err)
+	}
+
+	appLogger.Info("database migration completed", "model", "Job")
+	return db, nil
 }

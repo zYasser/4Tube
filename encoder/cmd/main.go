@@ -4,48 +4,51 @@ import (
 	"context"
 	"encoder/internal/config"
 	"encoder/internal/handlers"
-	"encoder/rabbitmq"
-	"fmt"
-	"log"
+	"encoder/internal/logging"
+	"encoder/pkg/rabbitmq"
+	"errors"
 	"net/http"
 
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 )
 
-
-
 func main() {
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatal("Error loading .env file ", err)
+	logger := logging.Setup().With("component", "startup")
+
+	if err := godotenv.Load(".env"); err != nil {
+		logger.Warn(".env file was not loaded", "path", ".env", "err", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// Setup database
-	db := config.SetupDatabase()
-	// Load configuration
 	appConfig := config.LoadConfig()
+	logger.Info("configuration loaded", "port", appConfig.Port)
+
+	db, err := config.SetupDatabase()
+	if err != nil {
+		logger.Error("database initialization failed", "err", err)
+		return
+	}
+	logger.Info("database initialized")
 
 	app := &config.Application{
-		DB: db,
+		DB:     db,
 		Router: mux.NewRouter(),
 	}
 
-	// Setup routes
 	app.Router = handlers.SetupRoutes()
+	logger.Info("routes initialized")
 
-	err = rabbitmq.SetupRabbitMQ(ctx, app.DB)
-	if err != nil {
-		log.Fatal(err)
+	if err := rabbitmq.SetupRabbitMQ(ctx, app.DB); err != nil {
+		logger.Error("rabbitmq initialization failed", "err", err)
+		return
 	}
-
-
-	defer cancel()
-	
-	// Start server
 	addr := ":" + appConfig.Port
-	fmt.Printf("Server starting on %s...\n", addr)
-	log.Fatal(http.ListenAndServe(addr, app.Router))
+	logger.Info("http server starting", "addr", addr)
+
+	if err := http.ListenAndServe(addr, app.Router); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		logger.Error("http server stopped unexpectedly", "addr", addr, "err", err)
+	}
 
 }

@@ -2,8 +2,9 @@ package rabbitmq
 
 import (
 	"context"
+	"encoder/internal/logging"
 	"errors"
-	"log"
+	"fmt"
 	"os"
 
 	"github.com/rabbitmq/amqp091-go"
@@ -16,20 +17,23 @@ type RabbitConfig struct {
 }
 
 func connectToRabbitMQ() (*RabbitConfig, error) {
-	log.Println("Connecting to RabbitMQ")
+	logger := logging.Component("rabbitmq")
+
 	url := os.Getenv("RABBITMQ_URL")
 	if url == "" {
 		return nil, errors.New("RABBITMQ_URL is not set")
 	}
+
+	logger.Info("connecting to rabbitmq")
 	conn, err := amqp091.Dial(url)
 	if err != nil {
-		log.Println("Failed to connect to RabbitMQ", err)
-		return nil, err
+		return nil, fmt.Errorf("dial rabbitmq: %w", err)
 	}
 
 	ch, err := conn.Channel()
 	if err != nil {
-		return nil, err
+		conn.Close()
+		return nil, fmt.Errorf("open rabbitmq channel: %w", err)
 	}
 
 	return &RabbitConfig{
@@ -39,26 +43,30 @@ func connectToRabbitMQ() (*RabbitConfig, error) {
 }
 
 func (c *RabbitConfig) close() error {
-	return c.Conn.Close()
+	return errors.Join(c.Channel.Close(), c.Conn.Close())
 }
 
+func SetupRabbitMQ(ctx context.Context, db *gorm.DB) error {
+	logger := logging.Component("rabbitmq")
 
-func SetupRabbitMQ(ctx context.Context , db *gorm.DB) ( error) {
 	rabbitConfig, err := connectToRabbitMQ()
 	if err != nil {
 		return err
 	}
 
-
-
-	go rabbitConfig.consumeMessages("upload.queue", "upload_exchange", "direct", "upload.routing.key" , db)
-	
+	if err := rabbitConfig.consumeMessages("upload.queue", "upload_exchange", "direct", "upload.routing.key", db); err != nil {
+		rabbitConfig.close()
+		return err
+	}
 
 	go func() {
 		<-ctx.Done()
-		log.Println("Stopping RabbitMQ connection")
-		rabbitConfig.close()
+		logger.Info("shutting down rabbitmq connection")
+		if err := rabbitConfig.close(); err != nil {
+			logger.Error("rabbitmq shutdown failed", "err", err)
+		}
 	}()
+
+	logger.Info("rabbitmq consumer started", "queue", "upload.queue", "exchange", "upload_exchange")
 	return nil
 }
-

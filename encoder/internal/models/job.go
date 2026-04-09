@@ -16,13 +16,21 @@ type Job struct {
 	FailedReason string    `gorm:"not null" default:""`
 	InputPath    string    `gorm:"not null" default:""`
 	Priority     int       `gorm:"not null" default:"0"`
-	SourceJobId  string    `gorm : "not null"`
+	SourceJobId  string    `gorm : ""`
 }
 
 func BuildJob(id, filepath string) *Job {
+	return &Job{
+		InputPath:   filepath,
+	}
+
+}
+
+func BuildSubJob(id, filepath string) *Job {
 	return &Job{
 		SourceJobId: id,
 		InputPath:   filepath,
 	}
 
 }
+
