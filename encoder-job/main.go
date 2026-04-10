@@ -50,7 +50,6 @@ func main() {
 
 	jobID := os.Getenv("JOB_ID")
 	if jobID == "" {
-		// best-effort fallback (keeps events non-empty during local runs)
 		out := os.Getenv("FFMPEG_OUTPUT_FILE")
 		if out != "" {
 			base := filepath.Base(out)

@@ -1,31 +1,38 @@
 package service
 
 import (
+	"encoder/internal/events"
+	"encoder/internal/logging"
 	"encoder/internal/models"
-	"encoder/pkg/rabbitmq"
 	"fmt"
 
 	"gorm.io/gorm"
 )
 
-func CreateJob(event rabbitmq.UploadEvent, db *gorm.DB) error {
-    tx := db.Begin()
-    if tx.Error != nil {
-        return fmt.Errorf("failed to begin transaction: %w", tx.Error)
-    }
+var logger = logging.Component("service-job")
 
-    for i := 0; i < event.ChunkCount; i++ {
-        job := models.BuildJob(string(event.ID), event.FileId)
-        if result := tx.Create(&job); result.Error != nil {
-            tx.Rollback()
-            return fmt.Errorf("failed to create job record at chunk %d: %w", i, result.Error)
-        }
-    }
+func CreateJob(event events.UploadEvent, db *gorm.DB) error {
 
-    if err := tx.Commit().Error; err != nil {
-        tx.Rollback()
-        return fmt.Errorf("failed to commit transaction: %w", err)
-    }
+	tx := db.Begin()
+	logger.Info("Received event",
+		"eventId", event.ID,
+	)
+	if tx.Error != nil {
+		return fmt.Errorf("failed to begin transaction: %w", tx.Error)
+	}
 
-    return nil
+	for i := 0; i < event.ChunkCount; i++ {
+		job := models.BuildJob(event.ID, event.FileId)
+		if result := tx.Create(&job); result.Error != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to create job record at chunk %d: %w", i, result.Error)
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
 }

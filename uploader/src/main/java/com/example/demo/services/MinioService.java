@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.demo.dto.UploadResult;
 import com.example.demo.model.UploadJob;
 import com.example.demo.threads.ThreadPool;
 import com.example.demo.utils.CustomMinioClient;
@@ -42,14 +43,14 @@ public class MinioService {
     /**
      * Uploads a file to MinIO and returns the object URL.
      */
-    public String upload(MultipartFile file, String objectName) {
+    public UploadResult upload(MultipartFile file, String objectName) {
         return upload(file, objectName, 3);
     }
 
     /**
      * Uploads a file to MinIO with retry logic and returns the object URL.
      */
-    public String upload(MultipartFile file, String objectName, int maxRetries) {
+    public UploadResult upload(MultipartFile file, String objectName, int maxRetries) {
         Exception lastException = null;
         for (int attempt = 0; attempt < maxRetries; attempt++) {
             try {
@@ -57,8 +58,8 @@ public class MinioService {
                 String id = customMinioClient.initMultiPartUpload(objectName);
                 UploadJob job = new UploadJob(objectName, id, data, customMinioClient);
                 ThreadPool pool = new ThreadPool();
-                int totalTasks = job.totalParts();
-                for (int i = 0; i < totalTasks; i++) {
+                int chunkCount = job.totalParts();
+                for (int i = 0; i < chunkCount; i++) {
                     pool.submitTask(job);
                 }
                 synchronized (job) {
@@ -67,7 +68,11 @@ public class MinioService {
                     }
                 }
                 log.info("Upload completed on attempt " + (attempt + 1));
-                return buildObjectUrl(objectName);
+                return new UploadResult(
+                        objectName,
+                        bucketName,
+                        buildObjectUrl(objectName),
+                        chunkCount);
             } catch (Exception e) {
                 lastException = e;
                 if (attempt < maxRetries - 1) {

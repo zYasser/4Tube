@@ -17,6 +17,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.testcontainers.containers.GenericContainer;
 
 import com.example.demo.config.MinioTestContainerConfig;
+import com.example.demo.dto.UploadResult;
 import com.example.demo.services.MinioService;
 import com.example.demo.utils.CustomMinioClient;
 
@@ -78,9 +79,13 @@ class MinioServiceIntegrationTests {
                 "application/octet-stream",
                 content);
 
-        String resultUrl = minioService.upload(file, objectName, 3);
+        UploadResult result = minioService.upload(file, objectName, 3);
 
-        assertEquals(MinioTestContainerConfig.endpoint(minioContainer) + "/" + BUCKET_NAME + "/" + objectName, resultUrl);
+        assertEquals(MinioTestContainerConfig.endpoint(minioContainer) + "/" + BUCKET_NAME + "/" + objectName,
+                result.url());
+        assertEquals(objectName, result.objectName());
+        assertEquals(BUCKET_NAME, result.bucketName());
+        assertEquals(2, result.chunkCount());
 
         try (InputStream inputStream = minioClient.getObject(
                 GetObjectArgs.builder().bucket(BUCKET_NAME).object(objectName).build())) {

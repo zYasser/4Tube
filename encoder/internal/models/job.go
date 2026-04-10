@@ -21,6 +21,7 @@ type Job struct {
 
 func BuildJob(id, filepath string) *Job {
 	return &Job{
+		SourceJobId: id,
 		InputPath:   filepath,
 	}
 

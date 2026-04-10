@@ -1,23 +1,15 @@
 package rabbitmq
 
 import (
+	"encoder/internal/events"
 	"encoder/internal/logging"
+	"encoder/internal/service"
 	"encoding/json"
 	"fmt"
 
 	"github.com/rabbitmq/amqp091-go"
 	"gorm.io/gorm"
 )
-
-type UploadEvent struct {
-	ID               int    `json:"id"`
-	FileId           string `json:"fileId"`
-	OriginalFilename string `json:"originalFilename"`
-	Location         string `json:"location"`
-	Size             int64  `json:"size"`
-	ContentType      string `json:"contentType"`
-	ChunkCount       int    `json:"chunkCount"`
-}
 
 func (con *RabbitConfig) consumeMessages(queueName string, exchangeName string, exchangeType string, routingKey string, db *gorm.DB) error {
 	logger := logging.Component("rabbitmq-consumer").With(
@@ -45,7 +37,9 @@ func (con *RabbitConfig) consumeMessages(queueName string, exchangeName string, 
 		false,
 		false,
 		false,
-		amqp091.Table{},
+		amqp091.Table{
+			"x-dead-letter-exchange":    "dlx-exchange",
+			"x-dead-letter-routing-key": "upload.dlq"},
 	)
 	if err != nil {
 		return fmt.Errorf("declare queue %s: %w", queueName, err)
@@ -76,7 +70,7 @@ func (con *RabbitConfig) consumeMessages(queueName string, exchangeName string, 
 
 	go func() {
 		for d := range msgs {
-			uploadEvent := UploadEvent{}
+			uploadEvent := events.UploadEvent{}
 			if err := json.Unmarshal(d.Body, &uploadEvent); err != nil {
 				logger.Error("failed to decode upload event", "delivery_tag", d.DeliveryTag, "err", err)
 				if nackErr := d.Nack(false, false); nackErr != nil {
@@ -92,6 +86,17 @@ func (con *RabbitConfig) consumeMessages(queueName string, exchangeName string, 
 				"content_type", uploadEvent.ContentType,
 				"chunk_count", uploadEvent.ChunkCount,
 			)
+			err := service.CreateJob(uploadEvent, db)
+			if err != nil {
+				logger.Error("Failed to process event %s , Error %v", string(uploadEvent.ID), err.Error())
+				if d.Redelivered {
+					d.Nack(false, false)
+
+				} else {
+					d.Nack(false, true)
+
+				}
+			}
 
 			if err := d.Ack(false); err != nil {
 				logger.Error("failed to acknowledge message", "delivery_tag", d.DeliveryTag, "err", err)

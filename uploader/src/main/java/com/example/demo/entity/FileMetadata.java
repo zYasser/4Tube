@@ -8,8 +8,10 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.UuidGenerator;
 
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Entity
 @Table(name = "file_metadata")
@@ -19,8 +21,10 @@ import java.time.LocalDateTime;
 public class FileMetadata {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @GeneratedValue
+    @UuidGenerator
+    @Column(name = "id", nullable = false, updatable = false)
+    private UUID id;
 
     @NotNull
     @Size(max = 255)
@@ -43,6 +47,9 @@ public class FileMetadata {
     @Column(name = "content_type")
     private String contentType;
 
+    @Column(name = "chunk_count")
+    private Integer chunkCount;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -51,11 +58,13 @@ public class FileMetadata {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    public FileMetadata(String filename, String originalFilename, String location, Long size, String contentType) {
+    public FileMetadata(String filename, String originalFilename, String location, Long size, String contentType,
+            Integer chunkCount) {
         this.filename = filename;
         this.originalFilename = originalFilename;
         this.location = location;
         this.size = size;
         this.contentType = contentType;
+        this.chunkCount = chunkCount;
     }
 }

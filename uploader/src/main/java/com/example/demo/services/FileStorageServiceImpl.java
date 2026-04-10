@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.demo.config.RabbitMqConfig;
+import com.example.demo.dto.UploadResult;
 import com.example.demo.entity.FileMetadata;
 import com.example.demo.events.UploadEvent;
 import com.example.demo.exceptions.HttpException;
@@ -69,19 +70,25 @@ public class FileStorageServiceImpl implements FileStorageService {
         String uniqueFilename = UUID.randomUUID().toString() + fileExtension;
 
         // Delegate upload entirely to MinioService
-        String fileUrl = minioService.upload(file, uniqueFilename);
+        UploadResult uploadResult = minioService.upload(file, uniqueFilename);
 
         FileMetadata metadata = new FileMetadata(
                 uniqueFilename,
                 originalFilename,
-                fileUrl,
+                uploadResult.url(),
                 file.getSize(),
-                file.getContentType());
+                file.getContentType(),
+                uploadResult.chunkCount());
         metadataRepository.save(metadata);
 
         UploadEvent uploadEvent = UploadEvent.builder()
-                .id(metadata.getId())
+                .id(metadata.getId().toString())
                 .fileId(metadata.getFilename())
+                .originalFilename(metadata.getOriginalFilename())
+                .location(metadata.getLocation())
+                .size(metadata.getSize())
+                .contentType(metadata.getContentType())
+                .chunkCount(metadata.getChunkCount())
                 .build();
         log.info("uploadEvent.toString() = " + uploadEvent.toString());
         rabbitTemplate.convertAndSend(RabbitMqConfig.UPLOAD_EXCHANGE, RabbitMqConfig.UPLOAD_ROUTING_KEY, uploadEvent);

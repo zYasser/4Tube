@@ -4,8 +4,8 @@ spring:
   rabbitmq:
     host: localhost
     port: 5672
-    username: user
-    password: password
+    username: ${RABBIT_USERNAME:root}
+    password: ${RABBIT_PASSWORD:root}
     template:
       retry:
         enabled: true
@@ -23,7 +23,7 @@ spring:
 
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/java
+    url: jdbc:postgresql://localhost:5432/4Tube
     username: root
     password: root
 

@@ -6,8 +6,13 @@ import lombok.Data;
 @Builder
 @Data
 public class UploadEvent {
-    private Long id;
+    private String id;
     private String fileId;
+    private String originalFilename;
+    private String location;
+    private Long size;
+    private String contentType;
+    private Integer chunkCount;
 
     @Override
     public String toString()
@@ -15,6 +20,11 @@ public class UploadEvent {
         return "UploadEvent{" +
                 "id=" + id +
                 ", fileId='" + fileId + '\'' +
+                ", originalFilename='" + originalFilename + '\'' +
+                ", location='" + location + '\'' +
+                ", size=" + size +
+                ", contentType='" + contentType + '\'' +
+                ", chunkCount=" + chunkCount +
                 '}';
     }
 }
